@@ -2,9 +2,11 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://1234:7890@db:3306/db_name'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://1234:7890@db:3306/db_name' # localhost vmesto db za wsl
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+app.config['TESTING'] = False
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)

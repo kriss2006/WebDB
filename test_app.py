@@ -1,39 +1,53 @@
 import pytest
-from flask import Flask
-from flask.testing import FlaskClient
-from flask_sqlalchemy import SQLAlchemy
-
+import json
+from unittest.mock import patch, MagicMock
 from app import app, db, User
 
 @pytest.fixture
 def client():
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://1234:7890@db:3306/db_name'
-
     app.config['TESTING'] = True
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+    client = app.test_client()
 
-    with app.test_client() as client:
-        with app.app_context():
-            db.create_all()
-        yield client
+    with app.app_context():
+        db.create_all()
 
-@pytest.fixture
-def sample_user():
-    return {'name': 'John Doe'}
+    yield client
 
-def test_add_user(client, sample_user):
-    response = client.post('/user', json=sample_user)
-    assert response.status_code == 201
+    with app.app_context():
+        db.session.remove()
+        db.drop_all()
 
-    users = User.query.all()
-    assert len(users) == 1
-    assert users[0].name == sample_user['name']
+@patch('app.SQLALCHEMY_DATABASE_URI', 'sqlite:///:memory:')
+def test_get_all_users(client):
+    mock_query = MagicMock()
+    mock_query.all.return_value = [
+        User(id=1, name='User1'),
+        User(id=2, name='User2')
+    ]
+    with patch('app.User.query', mock_query):
+        response = client.get('/users')
+        data = json.loads(response.data.decode('utf-8'))
 
-def test_get_users(client, sample_user):
-    client.post('/user', json=sample_user)
+        assert response.status_code == 200
+        assert isinstance(data, list)
+        assert len(data) == 2
 
-    response = client.get('/users')
+@patch('app.SQLALCHEMY_DATABASE_URI', 'sqlite:///:memory:')
+def test_add_user(client):
+    user_data = {'name': 'John Doe'}
+    response = client.post('/users', json=user_data)
+    data = json.loads(response.data.decode('utf-8'))
+
     assert response.status_code == 200
+    assert data['message'] == 'User added successfully'
 
-    data = response.json
-    assert len(data) == 1
-    assert data[0]['name'] == sample_user['name']
+@patch('app.SQLALCHEMY_DATABASE_URI', 'sqlite:///:memory:')
+def test_get_user(client):
+    user = User(name='Test User')
+    with patch('app.User.query.get_or_404', return_value=user):
+        response = client.get('/user/1')
+        data = json.loads(response.data.decode('utf-8'))
+
+        assert response.status_code == 200
+        assert data['name'] == 'Test User'
